@@ -2,13 +2,16 @@
 import type { FieldKey } from './data'
 
 const ANCHORS: Record<string, string[]> = {
-  heat: ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4'], // inferno-подібна
-  vapor: ['#f7fbff', '#c6dbef', '#6baed6', '#2171b5', '#08306b'], // 0 рідина (світла) → 1 пара (темна)
+  fluent: ['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000'], // типова rainbow-шкала Fluent
+  heat: ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4'],
+  vapor: ['#f7fbff', '#c6dbef', '#6baed6', '#2171b5', '#08306b'],
   diverging: ['#2166ac', '#67a9cf', '#f2f2f2', '#ef8a62', '#b2182b'],
   viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
 }
 
-const FIELD_MAP: Record<FieldKey, string> = { T: 'heat', vf: 'vapor', U: 'diverging', V: 'diverging', P: 'viridis', mt: 'viridis' }
+export type Palette = 'fluent' | 'science'
+
+const SCIENCE: Record<FieldKey, string> = { T: 'heat', vf: 'vapor', U: 'diverging', V: 'diverging', P: 'viridis', mt: 'viridis' }
 
 const cache = new Map<string, Uint8ClampedArray>()
 
@@ -17,8 +20,8 @@ function hex(h: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-export function lut(field: FieldKey): Uint8ClampedArray {
-  const name = FIELD_MAP[field]
+export function lut(field: FieldKey, palette: Palette): Uint8ClampedArray {
+  const name = palette === 'fluent' ? 'fluent' : SCIENCE[field]
   let t = cache.get(name)
   if (!t) {
     const a = ANCHORS[name].map(hex)
@@ -34,6 +37,7 @@ export function lut(field: FieldKey): Uint8ClampedArray {
   return t
 }
 
-export function isDiverging(field: FieldKey): boolean {
-  return FIELD_MAP[field] === 'diverging'
+/** Швидкості — симетрична шкала відносно нуля. */
+export function isSigned(field: FieldKey): boolean {
+  return field === 'U' || field === 'V'
 }

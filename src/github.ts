@@ -77,3 +77,26 @@ export class Repo {
     return JSON.parse(new TextDecoder().decode(await this.buffer(path))) as T
   }
 }
+
+/** Лише для розробки (`npm run dev`, адреса з ?local): файли з локальної ../fluent-data через dev-сервер. */
+export class LocalRepo extends Repo {
+  private local: Promise<Map<string, TreeEntry>> | null = null
+  constructor() {
+    super('local')
+  }
+  files(force = false): Promise<Map<string, TreeEntry>> {
+    if (!this.local || force)
+      this.local = fetch('/__data/tree')
+        .then((r) => r.json())
+        .then((l: TreeEntry[]) => new Map(l.map((e) => [e.path, e])))
+    return this.local
+  }
+  ageMs(): number {
+    return 0
+  }
+  async buffer(path: string): Promise<ArrayBuffer> {
+    const r = await fetch(`/__data/${path}`)
+    if (!r.ok) throw new Error(`Немає файлу ${path}`)
+    return r.arrayBuffer()
+  }
+}

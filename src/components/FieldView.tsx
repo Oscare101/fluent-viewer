@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { Grid } from '../types'
 import { FIELD_INFO, type FieldKey } from '../data'
-import { isDiverging, lut } from '../colormap'
+import { isSigned, lut, type Palette } from '../colormap'
+import { drawField, fieldNaturalWidth, type FieldLayout, type FieldParams } from '../fieldplot'
+import { PRINT, canvasBlob, copyBlob, fileSafe, saveBlob, screenTheme } from '../plot'
 import { num } from '../format'
-
-const M = { l: 42, r: 8, t: 8, b: 26 }
-
-function niceStep(span: number, target: number): number {
-  const raw = span / target
-  const p = 10 ** Math.floor(Math.log10(raw))
-  return [1, 2, 2.5, 5, 10].map((k) => k * p).find((s) => s >= raw) ?? raw
-}
 
 function upper(a: ArrayLike<number>, x: number): number {
   let lo = 0
@@ -27,22 +21,28 @@ export interface FieldViewProps {
   grid: Grid
   values: Float32Array
   field: FieldKey
-  xmax: number // мм від стінки; Infinity — уся область
-  robust: boolean // діапазон кольорів 1…99 % замість min…max
-  pickY?: number | null
+  xmax: number
+  robust: boolean
+  smooth: boolean
+  levels: number
+  palette: Palette
+  Tw: number
+  title: string
+  pickYs: number[]
   onPick?: (y: number) => void
 }
 
-export default function FieldView({ grid, values, field, xmax, robust, pickY, onPick }: FieldViewProps) {
+export default function FieldView(p: FieldViewProps) {
+  const { grid, values, field, xmax } = p
   const wrap = useRef<HTMLDivElement>(null)
   const cv = useRef<HTMLCanvasElement>(null)
-  const bar = useRef<HTMLCanvasElement>(null)
-  const [width, setWidth] = useState(320)
+  const layout = useRef<FieldLayout | null>(null)
+  const [width, setWidth] = useState(0)
   const [hover, setHover] = useState<{ x: number; y: number; v: number } | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
   const { nx, ny, xe, ye } = grid
   const X1 = Math.min(xmax, xe[nx])
   const ncol = Math.min(nx, upper(xe, X1 - 1e-9) + 1)
-  const full = !Number.isFinite(xmax)
 
   useEffect(() => {
     const el = wrap.current
@@ -53,7 +53,7 @@ export default function FieldView({ grid, values, field, xmax, robust, pickY, on
     return () => ro.disconnect()
   }, [])
 
-  // статистика й діапазон кольорів по видимій області (середнє — зважене за площею комірок)
+  // діапазон шкали й статистика по видимій області (середнє — зважене за площею)
   const st = useMemo(() => {
     let mn = Infinity, mx = -Infinity, s = 0, w = 0
     const vis: number[] = []
@@ -63,145 +63,73 @@ export default function FieldView({ grid, values, field, xmax, robust, pickY, on
         const v = values[j * nx + i]
         if (!Number.isFinite(v)) continue
         const dx = Math.min(xe[i + 1], X1) - xe[i]
-        mn = Math.min(mn, v)
-        mx = Math.max(mx, v)
-        s += v * dx * dy
-        w += dx * dy
+        mn = Math.min(mn, v); mx = Math.max(mx, v)
+        s += v * dx * dy; w += dx * dy
         vis.push(v)
       }
     }
     let lo = mn, hi = mx
-    if (robust && vis.length > 20) {
+    if (field === 'T') { lo = Math.min(lo, p.Tw); hi = Math.max(hi, p.Tw) }
+    if (p.robust && vis.length > 20) {
       vis.sort((a, b) => a - b)
       lo = vis[Math.floor(vis.length * 0.01)]
       hi = vis[Math.ceil(vis.length * 0.99) - 1]
     }
     if (field === 'vf') [lo, hi] = [0, 1]
-    else if (isDiverging(field)) {
+    else if (isSigned(field)) {
       const m = Math.max(Math.abs(lo), Math.abs(hi)) || 1
       ;[lo, hi] = [-m, m]
     }
     if (hi <= lo) hi = lo + 1
     return { mn, mx, mean: s / w, lo, hi }
-  }, [values, field, robust, ncol, X1, nx, ny, xe, ye])
+  }, [values, field, p.robust, p.Tw, ncol, X1, nx, ny, xe, ye])
 
-  const H = Math.round(Math.min(620, Math.max(380, window.innerHeight * 0.62)))
-  const ph = H - M.t - M.b
-  const pwFull = full ? Math.min(width - M.l - M.r, (ph * X1) / (ye[ny] - ye[0])) : width - M.l - M.r
-  const pw = Math.max(60, pwFull)
-  const W = full ? Math.min(width, pw + M.l + M.r) : width
-  const sx = (x: number) => M.l + (x / X1) * pw
-  const sy = (y: number) => M.t + (1 - (y - ye[0]) / (ye[ny] - ye[0])) * ph
+  const info = FIELD_INFO[field]
+  const params = useMemo<FieldParams>(
+    () => ({ grid, values, field, xmax, lo: st.lo, hi: st.hi, lut: lut(field, p.palette), smooth: p.smooth, levels: p.levels, Tw: p.Tw, pickYs: p.pickYs, title: p.title, unit: info.unit }),
+    [grid, values, field, xmax, st, p.palette, p.smooth, p.levels, p.Tw, p.pickYs, p.title, info.unit],
+  )
+  const H = Math.round(Math.min(680, Math.max(420, window.innerHeight * 0.68)))
+  const W = Number.isFinite(xmax) ? width : Math.min(width, Math.max(260, fieldNaturalWidth(H, params, 1)))
 
   useEffect(() => {
     const c = cv.current
-    if (!c) return
+    if (!c || !W) return
     const dpr = devicePixelRatio || 1
-    c.width = W * dpr
-    c.height = H * dpr
+    c.width = Math.round(W * dpr)
+    c.height = Math.round(H * dpr)
     c.style.width = `${W}px`
     c.style.height = `${H}px`
     const g = c.getContext('2d')!
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
-    g.clearRect(0, 0, W, H)
-    const t = lut(field)
-    for (let j = 0; j < ny; j++) {
-      const y0 = Math.floor(sy(ye[j + 1]))
-      const y1 = Math.ceil(sy(ye[j]))
-      for (let i = 0; i < ncol; i++) {
-        const v = values[j * nx + i]
-        if (!Number.isFinite(v)) continue
-        const k = Math.max(0, Math.min(255, Math.round(((v - st.lo) / (st.hi - st.lo)) * 255))) * 3
-        g.fillStyle = `rgb(${t[k]},${t[k + 1]},${t[k + 2]})`
-        const x0 = Math.floor(sx(xe[i]))
-        const x1 = Math.ceil(sx(Math.min(xe[i + 1], X1)))
-        g.fillRect(x0, y0, x1 - x0, y1 - y0)
-      }
-    }
-    // гаряча стінка
-    const css = getComputedStyle(document.documentElement)
-    const text = css.getPropertyValue('--muted').trim() || '#666'
-    g.strokeStyle = '#e0302a'
-    g.lineWidth = 3
-    g.beginPath()
-    g.moveTo(sx(0) - 1.5, sy(grid.hot_wall_y_mm[0]))
-    g.lineTo(sx(0) - 1.5, sy(grid.hot_wall_y_mm[1]))
-    g.stroke()
-    // вибрана висота
-    if (pickY !== null && pickY !== undefined) {
-      g.strokeStyle = css.getPropertyValue('--text').trim() || '#000'
-      g.lineWidth = 1
-      g.setLineDash([4, 3])
-      g.beginPath()
-      g.moveTo(M.l, Math.round(sy(pickY)) + 0.5)
-      g.lineTo(M.l + pw, Math.round(sy(pickY)) + 0.5)
-      g.stroke()
-      g.setLineDash([])
-    }
-    // осі
-    g.fillStyle = text
-    g.strokeStyle = text
-    g.lineWidth = 1
-    g.font = '11px system-ui, sans-serif'
-    g.textAlign = 'right'
-    g.textBaseline = 'middle'
-    for (let y = 0; y <= ye[ny] + 1e-9; y += 10) {
-      g.fillText(`${y}`, M.l - 6, sy(y))
-      g.beginPath()
-      g.moveTo(M.l - 3, Math.round(sy(y)) + 0.5)
-      g.lineTo(M.l, Math.round(sy(y)) + 0.5)
-      g.stroke()
-    }
-    const xs = niceStep(X1, Math.max(2, Math.floor(pw / 60)))
-    g.textAlign = 'center'
-    g.textBaseline = 'top'
-    for (let x = 0; x <= X1 + 1e-9; x += xs) {
-      g.fillText(num(x, xs < 0.1 ? 2 : xs < 1 ? 1 : 0), sx(x), H - M.b + 5)
-      g.beginPath()
-      g.moveTo(Math.round(sx(x)) + 0.5, H - M.b)
-      g.lineTo(Math.round(sx(x)) + 0.5, H - M.b + 3)
-      g.stroke()
-    }
-    g.save()
-    g.translate(11, M.t + ph / 2)
-    g.rotate(-Math.PI / 2)
-    g.textBaseline = 'middle'
-    g.fillText('y, мм', 0, 0)
-    g.restore()
-  }, [values, field, st, W, H, pw, ph, ncol, X1, pickY, grid, nx, ny, xe, ye])
-
-  // шкала кольорів
-  useEffect(() => {
-    const c = bar.current
-    if (!c) return
-    const w = Math.max(120, Math.min(W, 420))
-    const dpr = devicePixelRatio || 1
-    c.width = w * dpr
-    c.height = 12 * dpr
-    c.style.width = `${w}px`
-    c.style.height = '12px'
-    const g = c.getContext('2d')!
-    const t = lut(field)
-    for (let i = 0; i < c.width; i++) {
-      const k = Math.round((i / (c.width - 1)) * 255) * 3
-      g.fillStyle = `rgb(${t[k]},${t[k + 1]},${t[k + 2]})`
-      g.fillRect(i, 0, 1, c.height)
-    }
-  }, [field, W])
+    layout.current = drawField(g, W, H, params, screenTheme(), 1, dpr)
+  }, [params, W, H])
 
   function locate(e: PointerEvent<HTMLCanvasElement>) {
+    const L = layout.current
+    if (!L) return null
     const r = e.currentTarget.getBoundingClientRect()
-    const px = e.clientX - r.left
-    const py = e.clientY - r.top
-    const x = ((px - M.l) / pw) * X1
-    const y = ye[0] + (1 - (py - M.t) / ph) * (ye[ny] - ye[0])
-    if (x < 0 || x > X1 || y < ye[0] || y > ye[ny]) return null
+    const x = ((e.clientX - r.left - L.x) / L.w) * L.X1
+    const y = ye[0] + (1 - (e.clientY - r.top - L.y) / L.h) * (ye[ny] - ye[0])
+    if (x < 0 || x > L.X1 || y < ye[0] || y > ye[ny]) return null
     const i = Math.min(upper(xe, x), ncol - 1)
     const j = upper(ye, y)
     return { x: grid.xc[i], y: grid.yc[j], v: values[j * nx + i] }
   }
 
-  const info = FIELD_INFO[field]
+  async function png(): Promise<Blob> {
+    const Hx = 1100
+    const Wx = Number.isFinite(xmax) ? 1000 : Math.round(fieldNaturalWidth(Hx, params, 1.4))
+    const s = 2
+    const c = document.createElement('canvas')
+    c.width = Wx * s
+    c.height = Hx * s
+    const g = c.getContext('2d')!
+    g.scale(s, s)
+    drawField(g, Wx, Hx, params, PRINT, 1.4, s)
+    return canvasBlob(c)
+  }
+
   const fmt = (v: number) => (Math.abs(v) >= 1e4 || (Math.abs(v) < 1e-2 && v !== 0) ? v.toExponential(3) : num(v, field === 'vf' ? 3 : 2))
   return (
     <div className="field" ref={wrap}>
@@ -213,29 +141,34 @@ export default function FieldView({ grid, values, field, xmax, robust, pickY, on
         onPointerDown={(e) => {
           const h = locate(e)
           setHover(h)
-          if (h && onPick) onPick(h.y)
+          if (h && p.onPick) p.onPick(h.y)
         }}
       />
-      <div className="field-legend">
-        <canvas ref={bar} />
-        <div className="field-scale">
-          <span>{fmt(st.lo)}</span>
-          <span>
-            {info.label}
-            {info.unit && `, ${info.unit}`}
-          </span>
-          <span>{fmt(st.hi)}</span>
-        </div>
+      <div className="chart-bar">
+        <span className="chart-readout">
+          {hover ? (
+            <>
+              x = {num(hover.x, hover.x < 1 ? 4 : 2)} мм, y = {num(hover.y, 2)} мм: <b>{fmt(hover.v)}</b> {info.unit} (значення в комірці)
+            </>
+          ) : (
+            msg ?? 'Наведи на поле — значення в комірці; клік — профіль поперек плівки на цій висоті'
+          )}
+        </span>
+        <span className="chart-tools">
+          <button className="mini" onClick={async () => saveBlob(await png(), `${fileSafe(p.title)}.png`)}>
+            PNG
+          </button>
+          <button
+            className="mini"
+            onClick={async () => {
+              setMsg((await copyBlob(await png())) ? 'Скопійовано — встав у презентацію (Ctrl+V)' : 'Браузер не дозволив копіювати — збережи PNG')
+              setTimeout(() => setMsg(null), 2500)
+            }}
+          >
+            Копіювати
+          </button>
+        </span>
       </div>
-      <p className="small field-readout">
-        {hover ? (
-          <>
-            x = {num(hover.x, hover.x < 1 ? 4 : 2)} мм від стінки, y = {num(hover.y, 2)} мм: <b>{fmt(hover.v)}</b> {info.unit}
-          </>
-        ) : (
-          <span className="muted">Наведи (або торкнись) комірку, щоб побачити значення; клік — профіль поперек плівки на цій висоті.</span>
-        )}
-      </p>
       <p className="small muted">
         Видима область: min {fmt(st.mn)}, max {fmt(st.mx)}, середнє (за площею) {fmt(st.mean)} {info.unit}
       </p>

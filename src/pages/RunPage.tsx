@@ -28,11 +28,11 @@ function RunCharts({ repo, run, onAuth }: { repo: Repo; run: Run; onAuth: (e: Au
   )
 }
 
-function StateSection({ repo, run, onAuth }: { repo: Repo; run: Run; onAuth: (e: AuthError) => void }) {
+function StateSection({ repo, run, title, onAuth }: { repo: Repo; run: Run; title: string; onAuth: (e: AuthError) => void }) {
   const { data: grid, error } = useLoad(() => loadGrid(repo, run), [repo, run], onAuth)
   if (error) return <p className="error">{error}</p>
   if (!grid) return <p className="muted">Завантажую сітку…</p>
-  return <StateView repo={repo} run={run} grid={grid} onAuth={onAuth} />
+  return <StateView repo={repo} run={run} grid={grid} title={title} onAuth={onAuth} />
 }
 
 function tableRange(t: Table, digits: number, unit = ''): string {
@@ -295,7 +295,7 @@ export default function RunPage({ repo, id, version, onAuth }: { repo: Repo; id:
 
       <section>
         <h2>Поля, профілі</h2>
-        <StateSection repo={repo} run={run} onAuth={onAuth} />
+        <StateSection repo={repo} run={run} title={title} onAuth={onAuth} />
       </section>
 
       <section>

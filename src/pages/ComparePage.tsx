@@ -10,6 +10,7 @@ import {
 import { PALETTE } from '../components/Chart'
 import { CrossProfiles, WallProfiles, type ProfileItem } from '../components/Profiles'
 import { DtCharts, ReportCharts, type ReportItem } from '../components/ReportCharts'
+import { parseHeights } from '../components/StateView'
 
 interface Loaded {
   id: string
@@ -80,7 +81,10 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
     return runs.map((r, i) => (i === 0 ? defaultState(r.run) : nearestState(r.run, t)).file)
   })
   const [windows, setWindows] = useState<[number, number][]>([[5, 15]])
-  const [pickY, setPickY] = useState(20)
+  const [hText, setHText] = useState('10, 20, 30')
+  const [average, setAverage] = useState(true)
+  const [crossX, setCrossX] = useState(1)
+  const heights = useMemo(() => parseHeights(hText), [hText])
   const [dtWin, setDtWin] = useState(5)
   const states: State[] = runs.map((r, i) => r.run.states.find((s) => s.file === sel[i]) ?? defaultState(r.run))
   const selKey = sel.join('|')
@@ -281,11 +285,25 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
             <h3>Профілі вздовж гарячої стінки</h3>
             <WallProfiles items={items} zone={zone} />
             <h3>Поперек плівки</h3>
-            <label className="small">
-              y = {num(pickY, 2)} мм{' '}
-              <input type="range" min={0} max={60} step={0.5} value={pickY} onChange={(e) => setPickY(Number(e.target.value))} />
-            </label>
-            <CrossProfiles items={items} y={pickY} xmax={1} />
+            <div className="controls">
+              <label>
+                Висоти y, мм <input className="heights" value={hText} onChange={(e) => setHText(e.target.value)} placeholder="10, 20, 30" />
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={average} onChange={(e) => setAverage(e.target.checked)} /> усереднити
+              </label>
+              <label>
+                до{' '}
+                <select value={crossX} onChange={(e) => setCrossX(Number(e.target.value))}>
+                  {[0.3, 0.5, 1, 2, 3, 5].map((x) => (
+                    <option key={x} value={x}>
+                      {x} мм від стінки
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <CrossProfiles items={items} heights={heights} average={average} xmax={crossX} />
           </>
         )}
       </section>

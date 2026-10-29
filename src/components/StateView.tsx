@@ -4,6 +4,7 @@ import type { Grid, Run } from '../types'
 import { FIELD_INFO, defaultState, loadState, zoneStats, type FieldKey } from '../data'
 import { useLoad } from '../hooks'
 import { ms, num } from '../format'
+import type { Palette } from '../colormap'
 import FieldView from './FieldView'
 import { CrossProfiles, WallProfiles, type ProfileItem } from './Profiles'
 
@@ -14,20 +15,34 @@ const WIDTHS: [number, string][] = [
   [Infinity, 'уся область'],
 ]
 
-export default function StateView({ repo, run, grid, onAuth }: { repo: Repo; run: Run; grid: Grid; onAuth: (e: AuthError) => void }) {
+export function parseHeights(s: string): number[] {
+  return s
+    .split(/[\s,;]+/)
+    .map((x) => Number(x.replace(',', '.')))
+    .filter((x) => Number.isFinite(x) && x >= 0 && x <= 1000)
+}
+
+export default function StateView({ repo, run, grid, title, onAuth }: { repo: Repo; run: Run; grid: Grid; title: string; onAuth: (e: AuthError) => void }) {
   const [file, setFile] = useState(() => defaultState(run).file)
-  const [field, setField] = useState<FieldKey>('vf')
+  const [field, setField] = useState<FieldKey>('T')
   const [xmax, setXmax] = useState(1)
   const [robust, setRobust] = useState(false)
-  const [pickY, setPickY] = useState(20)
+  const [smooth, setSmooth] = useState(true)
+  const [banded, setBanded] = useState(false)
+  const [palette, setPalette] = useState<Palette>('fluent')
+  const [hText, setHText] = useState('10, 20, 30')
+  const [average, setAverage] = useState(true)
+  const heights = useMemo(() => parseHeights(hText), [hText])
   const state = run.states.find((s) => s.file === file) ?? defaultState(run)
   const { data: sd, error, loading } = useLoad(() => loadState(repo, run, state), [repo, run, state], onAuth)
 
   const items = useMemo<ProfileItem[] | null>(
-    () => (sd ? [{ label: ms(state.t_ms), sd, grid, Tw: run.T_w, Tsat: run.physics.T_sat }] : null),
-    [sd, state, grid, run],
+    () => (sd ? [{ label: `${title}, ${ms(state.t_ms)}`, sd, grid, Tw: run.T_w, Tsat: run.physics.T_sat }] : null),
+    [sd, state, grid, run, title],
   )
   const zs = useMemo(() => (sd ? zoneStats(sd, grid, run.zone_mm, run.T_w, run.physics.T_sat) : null), [sd, grid, run])
+  const info = FIELD_INFO[field]
+  const figTitle = `${info.label}${info.unit ? `, ${info.unit}` : ''} — ${title}, t = ${ms(state.t_ms)}`
 
   return (
     <>
@@ -63,6 +78,19 @@ export default function StateView({ repo, run, grid, onAuth }: { repo: Repo; run
             ))}
           </select>
         </label>
+        <label>
+          Палітра{' '}
+          <select value={palette} onChange={(e) => setPalette(e.target.value as Palette)}>
+            <option value="fluent">Fluent (rainbow)</option>
+            <option value="science">наукова</option>
+          </select>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} /> плавно (як Node Values)
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={banded} onChange={(e) => setBanded(e.target.checked)} /> смуги (Banded)
+        </label>
         <label className="check">
           <input type="checkbox" checked={robust} onChange={(e) => setRobust(e.target.checked)} /> шкала 1…99 %
         </label>
@@ -78,24 +106,34 @@ export default function StateView({ repo, run, grid, onAuth }: { repo: Repo; run
               {zs.dome_y.length > 0 && <span className="bad"> · купол на стінці в зоні</span>}
             </p>
           )}
-          <div className="state-layout">
-            <FieldView grid={grid} values={sd.fields[field]} field={field} xmax={xmax} robust={robust} pickY={pickY} onPick={setPickY} />
-            <div className="state-side">
-              <h3>Поперек плівки</h3>
-              <label className="small">
-                y = {num(pickY, 2)} мм{' '}
-                <input
-                  type="range"
-                  min={grid.ye[0]}
-                  max={grid.ye[grid.ny]}
-                  step={0.5}
-                  value={pickY}
-                  onChange={(e) => setPickY(Number(e.target.value))}
-                />
-              </label>
-              <CrossProfiles items={items} y={pickY} xmax={Number.isFinite(xmax) ? xmax : 3} />
-            </div>
+          <FieldView
+            grid={grid}
+            values={sd.fields[field]}
+            field={field}
+            xmax={xmax}
+            robust={robust}
+            smooth={smooth}
+            levels={banded ? 20 : 0}
+            palette={palette}
+            Tw={run.T_w}
+            title={figTitle}
+            pickYs={heights}
+            onPick={(y) => setHText(num(y, 2).replace(',', '.'))}
+          />
+          {!smooth && <p className="small muted">Комірки показано як є: у плівці 0.06–0.3 мм лише 3–10 стовпців (перша комірка 0.0194 мм).</p>}
+
+          <h3>Поперек плівки</h3>
+          <div className="controls">
+            <label>
+              Висоти y, мм{' '}
+              <input className="heights" value={hText} onChange={(e) => setHText(e.target.value)} placeholder="10, 20, 30" />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={average} onChange={(e) => setAverage(e.target.checked)} /> усереднити
+            </label>
           </div>
+          <CrossProfiles items={items} heights={heights} average={average} xmax={Number.isFinite(xmax) ? xmax : 3} />
+
           <h3>Уздовж гарячої стінки</h3>
           <WallProfiles items={items} zone={run.zone_mm} detail />
         </>

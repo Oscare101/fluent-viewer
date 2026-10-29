@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AuthError, Repo } from './github'
+import { AuthError, LocalRepo, Repo } from './github'
 import { clearToken, loadToken, saveToken } from './storage'
 import { useRoute } from './hooks'
 import Login from './pages/Login'
@@ -12,7 +12,10 @@ export default function App() {
   const [authMsg, setAuthMsg] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  const repo = useMemo(() => (token ? new Repo(token) : null), [token])
+  const repo = useMemo(
+    () => (import.meta.env.DEV && location.search.includes('local') ? new LocalRepo() : token ? new Repo(token) : null),
+    [token],
+  )
   const route = useRoute()
 
   const onAuth = useCallback((e: AuthError) => {

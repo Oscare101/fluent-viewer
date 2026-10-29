@@ -17,6 +17,7 @@ Content-Security-Policy дозволяє сторінці звертатися �
 ```
 npm install
 npm run dev      # http://localhost:5173/fluent-viewer/
+                 # http://localhost:5173/fluent-viewer/?local — без токена, дані з сусідньої ../fluent-data
 npm run build    # перевірка типів + збірка в dist/
 ```
 Звідки читати дані — `src/config.ts`. Формати `index.json` і `preview/` — `src/types.ts` і `fluent-data/README.md`.
