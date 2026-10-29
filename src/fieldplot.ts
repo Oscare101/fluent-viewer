@@ -46,7 +46,7 @@ const font = (px: number, bold = false) => `${bold ? 'bold ' : ''}${px}px "DejaV
 export function fieldLayout(W: number, H: number, p: FieldParams, f: number): FieldLayout {
   const g = p.grid
   const X1 = Math.min(p.xmax, g.xe[g.nx])
-  const L = 50 * f, T = (p.title ? 34 : 12) * f, B = 44 * f, R = 104 * f
+  const L = 56 * f, T = (p.title ? 34 : 12) * f, B = 44 * f, R = 104 * f
   const h = Math.max(50, H - T - B)
   const full = !Number.isFinite(p.xmax)
   const avail = Math.max(50, W - L - R)
@@ -59,7 +59,7 @@ export function fieldNaturalWidth(H: number, p: FieldParams, f: number): number 
   const g = p.grid
   const X1 = Math.min(p.xmax, g.xe[g.nx])
   const T = (p.title ? 34 : 12) * f, B = 44 * f
-  return 50 * f + ((H - T - B) * X1) / (g.ye[g.ny] - g.ye[0]) + 104 * f
+  return 56 * f + ((H - T - B) * X1) / (g.ye[g.ny] - g.ye[0]) + 104 * f
 }
 
 /** S — фізичних пікселів на логічний (devicePixelRatio або масштаб експорту). */
@@ -179,7 +179,7 @@ export function drawField(g2: CanvasRenderingContext2D, W: number, H: number, p:
   g2.translate(13 * f, Lt.y + Lt.h / 2)
   g2.rotate(-Math.PI / 2)
   g2.textBaseline = 'middle'
-  g2.fillText('y, мм', 0, 0)
+  g2.fillText('Висота y, мм', 0, 0)
   g2.restore()
 
   // шкала кольорів (вертикальна, як у Fluent)

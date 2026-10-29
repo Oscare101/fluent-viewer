@@ -119,14 +119,15 @@ export default function FieldView(p: FieldViewProps) {
 
   async function png(): Promise<Blob> {
     const Hx = 1100
-    const Wx = Number.isFinite(xmax) ? 1000 : Math.round(fieldNaturalWidth(Hx, params, 1.4))
+    const fx = 2.3
+    const Wx = Number.isFinite(xmax) ? 1100 : Math.round(fieldNaturalWidth(Hx, params, fx))
     const s = 2
     const c = document.createElement('canvas')
     c.width = Wx * s
     c.height = Hx * s
     const g = c.getContext('2d')!
     g.scale(s, s)
-    drawField(g, Wx, Hx, params, PRINT, 1.4, s)
+    drawField(g, Wx, Hx, params, PRINT, fx, s)
     return canvasBlob(c)
   }
 

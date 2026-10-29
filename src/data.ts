@@ -6,12 +6,12 @@ export type FieldKey = 'T' | 'vf' | 'U' | 'V' | 'P' | 'mt'
 export type ProfKey = 'qc' | 'qr' | 'q' | 'delta' | 'T1' | 'vf1'
 
 export const FIELD_INFO: Record<FieldKey, { label: string; unit: string }> = {
-  T: { label: 'Static Temperature', unit: 'K' },
-  vf: { label: 'Volume Fraction пари', unit: '' },
-  V: { label: 'v (вертикальна швидкість)', unit: 'м/с' },
-  U: { label: 'u (горизонтальна швидкість)', unit: 'м/с' },
-  P: { label: 'Тиск', unit: 'Па' },
-  mt: { label: 'Mass transfer rate', unit: 'кг/(м³·с)' },
+  T: { label: 'Температура', unit: 'K' },
+  vf: { label: 'Об’ємна частка пари', unit: '' },
+  V: { label: 'Вертикальна швидкість v', unit: 'м/с' },
+  U: { label: 'Горизонтальна швидкість u', unit: 'м/с' },
+  P: { label: 'Тиск (надлишковий)', unit: 'Па' },
+  mt: { label: 'Інтенсивність масообміну (Lee)', unit: 'кг/(м³·с)' },
 }
 
 export interface StateData {

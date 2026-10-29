@@ -30,9 +30,11 @@ interface Peer {
 }
 const groups = new Map<string, Set<Peer>>()
 
-// Розмір PNG для презентації (логічні пікселі; файл — удвічі більший).
+// Розмір PNG для презентації (логічні пікселі; файл — удвічі більший) і збільшення шрифтів/ліній:
+// на слайді на пів ширини підписи мають читатися з останнього ряду.
 const EXPORT_W = 1000
-const EXPORT_H = 680
+const EXPORT_H = 720
+const EXPORT_FONT = 2.4
 
 function valueText(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—'
@@ -89,6 +91,15 @@ export default function Chart(p: ChartProps) {
     c.style.width = `${width}px`
     c.style.height = `${H}px`
     const g = c.getContext('2d')!
+    if (import.meta.env.DEV && location.search.includes('printpreview')) {
+      // лише для розробки: показати, як виглядатиме PNG (той самий рендер, що й експорт)
+      const k = (width / EXPORT_W) * dpr
+      c.height = Math.round(EXPORT_H * k)
+      c.style.height = `${(EXPORT_H * width) / EXPORT_W}px`
+      g.setTransform(k, 0, 0, k, 0, 0)
+      drawPlot(g, EXPORT_W, EXPORT_H, spec, view, PRINT, EXPORT_FONT)
+      return
+    }
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
     layout.current = drawPlot(g, width, H, spec, view, screenTheme())
   }, [spec, view, width, H])
@@ -152,7 +163,7 @@ export default function Chart(p: ChartProps) {
     c.height = EXPORT_H * s
     const g = c.getContext('2d')!
     g.scale(s, s)
-    drawPlot(g, EXPORT_W, EXPORT_H, spec, view, PRINT, 1.35)
+    drawPlot(g, EXPORT_W, EXPORT_H, spec, view, PRINT, EXPORT_FONT)
     return canvasBlob(c)
   }
 

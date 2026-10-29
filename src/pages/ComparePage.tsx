@@ -84,6 +84,7 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
   const [hText, setHText] = useState('10, 20, 30')
   const [average, setAverage] = useState(true)
   const [crossX, setCrossX] = useState(1)
+  const [showT, setShowT] = useState(true)
   const heights = useMemo(() => parseHeights(hText), [hText])
   const [dtWin, setDtWin] = useState(5)
   const states: State[] = runs.map((r, i) => r.run.states.find((s) => s.file === sel[i]) ?? defaultState(r.run))
@@ -102,12 +103,12 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
     () =>
       sds
         ? sds.map((sd: StateData, i) => ({
-            label: `${runs[i].title} · ${ms(states[i].t_ms)}`,
+            label: showT ? `${runs[i].title}, t = ${ms(states[i].t_ms)}` : runs[i].title,
             sd, grid: runs[i].grid, Tw: runs[i].run.T_w, Tsat: runs[i].run.physics.T_sat,
           }))
         : null,
     // states залежать від selKey
-    [sds, runs, selKey],
+    [sds, runs, selKey, showT],
   )
   const reportItems = useMemo<ReportItem[]>(() => runs.map((r) => ({ label: r.title, series: r.series, dt: r.dt })), [runs])
   const bands = useMemo(() => windows.filter(([a, b]) => b > a), [windows])
@@ -163,6 +164,9 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
         <h2>Стани в один момент</h2>
         <div className="controls">
           <ZoneInput zone={zone} setZone={setZone} />
+          <label className="check">
+            <input type="checkbox" checked={showT} onChange={(e) => setShowT(e.target.checked)} /> час (мс) у легендах графіків
+          </label>
           <label>
             Усім — найближчий до{' '}
             <select value="" onChange={(e) => e.target.value && setAllNear(Number(e.target.value))}>
@@ -207,12 +211,12 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
               {zs &&
                 ([
                   ['α, Вт/(м²·K)', (z: ZoneStats) => z.alpha, 1],
-                  ['α_cond', (z: ZoneStats) => z.alpha_cond, 1],
-                  ['α_rad', (z: ZoneStats) => z.alpha_rad, 1],
-                  ['частка радіації, %', (z: ZoneStats) => z.rad_share * 100, 2],
+                  ['α теплопровідністю', (z: ZoneStats) => z.alpha_cond, 1],
+                  ['α випромінюванням', (z: ZoneStats) => z.alpha_rad, 1],
+                  ['частка випромінювання, %', (z: ZoneStats) => z.rad_share * 100, 2],
                   ['δ (медіана), мм', (z: ZoneStats) => z.delta_med, 3],
                   ['q, кВт/м²', (z: ZoneStats) => z.q_kW, 1],
-                  ['q_rad, кВт/м²', (z: ZoneStats) => z.q_rad_kW, 2],
+                  ['q випромінюванням, кВт/м²', (z: ZoneStats) => z.q_rad_kW, 2],
                   ['Q зони плівки, Вт/м', (z: ZoneStats) => z.Q_zone, 0],
                 ] as [string, (z: ZoneStats) => number | null, number][]).map(([label, f, d]) => (
                   <tr key={label}>
@@ -309,7 +313,7 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
       </section>
 
       <section>
-        <h2>Reports за часовими вікнами</h2>
+        <h2>Звіти (reports) за часовими вікнами</h2>
         <div className="windows">
           {windows.map(([a, b], w) => (
             <span key={w} className="window">
@@ -343,11 +347,11 @@ function Compare({ repo, runs, all, onAuth }: { repo: Repo; runs: Loaded[]; all:
                 <thead>
                   <tr>
                     <th />
-                    <th>Q_total, Вт/м</th>
-                    <th>Q_rad, Вт/м</th>
-                    <th>частка рад.</th>
-                    <th>пара, %</th>
-                    <th title="Правило 2: dt у вікні не більший за базовий">dt</th>
+                    <th>Сумарний потік Q, Вт/м</th>
+                    <th>Q випромінюванням, Вт/м</th>
+                    <th>частка випромінювання</th>
+                    <th>частка пари, %</th>
+                    <th title="Правило 2: крок за часом у вікні не більший за базовий">крок Δt</th>
                   </tr>
                 </thead>
                 <tbody>

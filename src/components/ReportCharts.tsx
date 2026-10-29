@@ -11,11 +11,11 @@ export interface ReportItem {
 }
 
 const KINDS: [string, string, string, number][] = [
-  ['Q_total', 'Сумарний тепловий потік з гарячої стінки', 'Q_total, Вт/м', 1],
-  ['Q_rad', 'Радіаційний тепловий потік', 'Q_rad, Вт/м', 1],
-  ['vapor', 'Частка пари в області', 'Пара, %', 100],
+  ['Q_total', 'Сумарний тепловий потік з гарячої стінки', 'Тепловий потік Q, Вт/м', 1],
+  ['Q_rad', 'Тепловий потік випромінюванням', 'Тепловий потік Q, Вт/м', 1],
+  ['vapor', 'Об’ємна частка пари в розрахунковій області', 'Частка пари, %', 100],
 ]
-const T_AXIS = 'Flow time, мс'
+const T_AXIS = 'Час, мс'
 
 /** Спільна вісь x для кількох кривих: об'єднання точок, null там, де в кривої точки немає. */
 export function align(curves: { x: ArrayLike<number>; y: ArrayLike<number | null> }[]): ChartData {
@@ -111,8 +111,8 @@ export function DtCharts({ items, syncKey }: { items: ReportItem[]; syncKey: str
   if (!dt) return <p className="muted">Немає транскрипту — історія кроку часу невідома.</p>
   return (
     <div className="chart-grid wide">
-      <Chart title="Крок часу" yLabel="dt, с" data={dt.data} series={dt.series} xLabel={T_AXIS} logY syncKey={syncKey} height={260} />
-      {iters && <Chart title="Ітерацій на крок" yLabel="ітерацій" data={iters.data} series={iters.series} xLabel={T_AXIS} syncKey={syncKey} height={260} />}
+      <Chart title="Крок за часом" yLabel="Крок за часом Δt, с" data={dt.data} series={dt.series} xLabel={T_AXIS} logY syncKey={syncKey} height={260} />
+      {iters && <Chart title="Кількість ітерацій на крок за часом" yLabel="Кількість ітерацій" data={iters.data} series={iters.series} xLabel={T_AXIS} syncKey={syncKey} height={260} />}
     </div>
   )
 }

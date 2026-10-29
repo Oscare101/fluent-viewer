@@ -590,15 +590,28 @@ a.button:hover {
   opacity: 0.9;
 }
 
-table.cmp td:first-child {
-  text-align: left;
-  white-space: nowrap;
+/* таблиці порівняння: однакова ширина колонок розрахунків, заголовок і значення вирівняні ліворуч */
+table.cmp {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 560px;
 }
 
-table.cmp th {
-  text-align: right;
+table.cmp th,
+table.cmp td,
+table.cmp td:nth-child(2),
+table.cmp td:last-child {
+  text-align: left;
   white-space: normal;
-  min-width: 8em;
+}
+
+table.cmp th:first-child,
+table.cmp td:first-child {
+  width: 15em;
+}
+
+table.cmp select {
+  width: 100%;
 }
 
 .cmp-runs {
