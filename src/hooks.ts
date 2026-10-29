@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
 import { AuthError } from './github'
 
-export type Route = { page: 'list' } | { page: 'run'; id: string }
+export type Route = { page: 'list' } | { page: 'run'; id: string } | { page: 'compare'; ids: string[] }
 
 function parse(): Route {
   const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''))
-  return h.startsWith('run/') ? { page: 'run', id: h.slice(4) } : { page: 'list' }
+  if (h.startsWith('run/')) return { page: 'run', id: h.slice(4) }
+  if (h.startsWith('compare')) return { page: 'compare', ids: h.slice(8).split(',').filter(Boolean) }
+  return { page: 'list' }
+}
+
+export function compareHref(ids: string[]): string {
+  return `#/compare/${ids.join(',')}`
 }
 
 export function useRoute(): Route {

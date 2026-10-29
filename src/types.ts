@@ -81,8 +81,42 @@ export interface ReportMeta {
   file: string
   n: number
   n_raw: number
+  cum_file?: string
+  cum_n?: number
   t_ms: [number, number]
   segments: string[]
+}
+
+export interface DtHistory {
+  sessions: string[]
+  n_steps: number
+  changes: [number, number, number][] // крок, t (мс), dt (с) — діє з цього моменту
+  rollbacks: [number, number][]
+  not_converged?: [number, number, number][]
+  n_not_converged?: number
+  max_iter_setting?: number | null
+  iters_max?: number
+  iters_mean?: number
+  iters_buckets?: { t_ms: number[]; mean: number[]; max: number[] }
+}
+
+export interface StateLayout {
+  dtype: 'float32'
+  nx: number
+  ny: number
+  fields: string[]
+  profiles: string[]
+  units: Record<string, string>
+}
+
+export interface Grid {
+  nx: number
+  ny: number
+  xc: number[]
+  yc: number[]
+  xe: number[]
+  ye: number[]
+  hot_wall_y_mm: [number, number]
 }
 
 export type Table = [number, number][] | number | null
@@ -122,6 +156,7 @@ export interface Run {
   case: string
   physics: Physics
   zone_mm: [number, number]
+  state_layout: StateLayout
   states: State[]
   reports: ReportMeta[]
   dt_history: string | null

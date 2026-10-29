@@ -1,14 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AuthError, Repo } from '../github'
-import type { FileInfo, IndexFile, Run, State, Table } from '../types'
+import type { FileInfo, Run, State, Table } from '../types'
 import { useLoad } from '../hooks'
 import { bytes, mediumLabel, ms, num, statusLabel } from '../format'
+import { loadDt, loadGrid, loadReports, loadRun } from '../data'
+import { DtCharts, ReportCharts, type ReportItem } from '../components/ReportCharts'
+import StateView from '../components/StateView'
 
-async function load(repo: Repo, id: string) {
-  const run = await repo.json<Run>(`${id}/preview/run.json`)
-  const index = await repo.json<IndexFile>('index.json').catch(() => null)
-  const entry = index?.runs.find((r) => r.id === id)
-  return { run, title: entry?.title ?? run.meta.title ?? id }
+function RunCharts({ repo, run, onAuth }: { repo: Repo; run: Run; onAuth: (e: AuthError) => void }) {
+  const { data, error } = useLoad(
+    async () => ({ series: await loadReports(repo, run), dt: await loadDt(repo, run) }),
+    [repo, run],
+    onAuth,
+  )
+  const items = useMemo<ReportItem[] | null>(
+    () => (data ? [{ label: run.id, series: data.series, dt: data.dt, states: run.states }] : null),
+    [data, run],
+  )
+  if (error) return <p className="error">{error}</p>
+  if (!items) return <p className="muted">Завантажую reports…</p>
+  return (
+    <>
+      <ReportCharts items={items} syncKey={`run:${run.id}`} />
+      <h3>Крок часу</h3>
+      <DtCharts items={items} syncKey={`run:${run.id}`} />
+    </>
+  )
+}
+
+function StateSection({ repo, run, onAuth }: { repo: Repo; run: Run; onAuth: (e: AuthError) => void }) {
+  const { data: grid, error } = useLoad(() => loadGrid(repo, run), [repo, run], onAuth)
+  if (error) return <p className="error">{error}</p>
+  if (!grid) return <p className="muted">Завантажую сітку…</p>
+  return <StateView repo={repo} run={run} grid={grid} onAuth={onAuth} />
 }
 
 function tableRange(t: Table, digits: number, unit = ''): string {
@@ -171,7 +195,7 @@ function Screenshots({ repo, run }: { repo: Repo; run: Run }) {
 }
 
 export default function RunPage({ repo, id, version, onAuth }: { repo: Repo; id: string; version: number; onAuth: (e: AuthError) => void }) {
-  const { data, error, loading } = useLoad(() => load(repo, id), [repo, id, version], onAuth)
+  const { data, error, loading } = useLoad(() => loadRun(repo, id), [repo, id, version], onAuth)
   if (loading && !data) return <p className="muted">Завантажую розрахунок…</p>
   if (error) return <p className="error">{error}</p>
   if (!data) return null
@@ -189,7 +213,8 @@ export default function RunPage({ repo, id, version, onAuth }: { repo: Repo; id:
       <h1>{title}</h1>
       <p className="muted">
         <code>{run.id}</code>
-        {meta.status && <span className={`badge ${meta.status}`}>{statusLabel(meta.status)}</span>}
+        {meta.status && <span className={`badge ${meta.status}`}>{statusLabel(meta.status)}</span>}{' '}
+        · <a href={`#/compare/${[meta.baseline, run.id].filter(Boolean).join(',')}`}>порівняти{meta.baseline ? ' з базою' : ''}</a>
         {meta.baseline && (
           <>
             {' '}
@@ -269,7 +294,13 @@ export default function RunPage({ repo, id, version, onAuth }: { repo: Repo; id:
       </section>
 
       <section>
+        <h2>Поля, профілі</h2>
+        <StateSection repo={repo} run={run} onAuth={onAuth} />
+      </section>
+
+      <section>
         <h2>Reports і крок часу</h2>
+        <RunCharts repo={repo} run={run} onAuth={onAuth} />
         <ul className="plain">
           {run.reports.map((r) => (
             <li key={r.group}>
@@ -284,7 +315,6 @@ export default function RunPage({ repo, id, version, onAuth }: { repo: Repo; id:
             </li>
           )}
         </ul>
-        <p className="muted small">Графіки reports, контури полів і профілі — наступний етап.</p>
       </section>
 
       <Screenshots repo={repo} run={run} />

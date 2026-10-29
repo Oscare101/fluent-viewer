@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { AuthError, Repo } from '../github'
 import type { IndexFile, IndexRun } from '../types'
-import { useLoad } from '../hooks'
+import { compareHref, useLoad } from '../hooks'
 import { mediumLabel, ms, statusLabel } from '../format'
 
 const RUN_CASE = /^([^/]+\/T\d+\/[^/]+)\/[^/]+\.cas\.h5$/
@@ -33,6 +33,8 @@ function matches(r: IndexRun, q: string): boolean {
 export default function RunList({ repo, version, onAuth }: { repo: Repo; version: number; onAuth: (e: AuthError) => void }) {
   const { data, error, loading } = useLoad(() => load(repo), [repo, version], onAuth)
   const [q, setQ] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 
   const groups = useMemo(() => {
     const g = new Map<string, IndexRun[]>()
@@ -70,7 +72,10 @@ export default function RunList({ repo, version, onAuth }: { repo: Repo; version
           <h2>{geom}</h2>
           <ul className="runs">
             {runs.map((r) => (
-              <li key={r.id}>
+              <li key={r.id} className="run-row">
+                <label className="pick" title="Вибрати для порівняння">
+                  <input type="checkbox" checked={picked.includes(r.id)} onChange={() => toggle(r.id)} />
+                </label>
                 <a className="run" href={`#/run/${r.id}`}>
                   <span className="run-title">{r.title}</span>
                   <span className="run-meta">
@@ -87,6 +92,23 @@ export default function RunList({ repo, version, onAuth }: { repo: Repo; version
           </ul>
         </section>
       ))}
+      {picked.length > 0 && (
+        <div className="compare-bar">
+          <span>
+            Вибрано: {picked.length}
+            {picked.length === 1 && ' (вибери ще хоча б один)'}
+          </span>
+          <button className="ghost" onClick={() => setPicked([])}>
+            Скинути
+          </button>
+          {picked.length > 1 && (
+            <a className="button" href={compareHref(picked)}>
+              Порівняти
+            </a>
+          )}
+        </div>
+      )}
+      <p className="small muted">Познач галочками 2+ розрахунки, щоб порівняти. Перший вибраний — база.</p>
     </>
   )
 }

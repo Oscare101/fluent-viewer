@@ -5,6 +5,7 @@ import { useRoute } from './hooks'
 import Login from './pages/Login'
 import RunList from './pages/RunList'
 import RunPage from './pages/RunPage'
+import ComparePage from './pages/ComparePage'
 
 export default function App() {
   const [token, setToken] = useState(loadToken)
@@ -78,6 +79,8 @@ export default function App() {
       <main>
         {route.page === 'run' ? (
           <RunPage key={route.id} repo={repo} id={route.id} version={version} onAuth={onAuth} />
+        ) : route.page === 'compare' ? (
+          <ComparePage repo={repo} ids={route.ids} version={version} onAuth={onAuth} />
         ) : (
           <RunList repo={repo} version={version} onAuth={onAuth} />
         )}
